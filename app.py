@@ -34,7 +34,8 @@ print(f"Batas Bawah: \n{batas_bawah}")
 
 # Filter outliers
 outlier_filter = (df.select_dtypes(exclude=['object']) < batas_bawah) | (df.select_dtypes(exclude=['object']) > batas_atas)
-print(outlier_filter)
+outliers = df[outlier_filter.any(axis=1)]
+print("Outliers:\n", outliers)
 
 # Check missing values
 print(df.info())
@@ -64,11 +65,8 @@ y_kmeans = kmeansmodel.fit_predict(X)
 
 # Visualizing the Clusters
 plt.figure(figsize=(10, 6))
-plt.scatter(X[y_kmeans == 0, 0], X[y_kmeans == 0, 1], s=100, c='red', label='Cluster 1')
-plt.scatter(X[y_kmeans == 1, 0], X[y_kmeans == 1, 1], s=100, c='blue', label='Cluster 2')
-plt.scatter(X[y_kmeans == 2, 0], X[y_kmeans == 2, 1], s=100, c='green', label='Cluster 3')
-plt.scatter(X[y_kmeans == 3, 0], X[y_kmeans == 3, 1], s=100, c='cyan', label='Cluster 4')
-plt.scatter(X[y_kmeans == 4, 0], X[y_kmeans == 4, 1], s=100, c='magenta', label='Cluster 5')
+for i in range(5):
+    plt.scatter(X[y_kmeans == i, 0], X[y_kmeans == i, 1], s=100, label=f'Cluster {i + 1}')
 plt.scatter(kmeansmodel.cluster_centers_[:, 0], kmeansmodel.cluster_centers_[:, 1], s=300, c='yellow', label='Centroids')
 plt.title('Clusters of Customers')
 plt.xlabel('Feature 1')
