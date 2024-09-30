@@ -1,83 +1,114 @@
-# Import required libraries
+# Import libraries
+import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 import seaborn as sns
+import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 
-# Load Dataset
-df = pd.read_csv("Drug.csv")
+# Page configuration
+st.set_page_config(
+    page_title="Drugs Segmentation",
+    page_icon="🏪",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# Check the dimension of the dataset
-print(df.shape)
+# Load dataset
+@st.cache_data
+def load_data():
+    return pd.read_csv('Drug.csv')
 
-# Display the first and last 5 rows of the dataset
-print(df.head(5))
-print(df.tail(5))
+dataset = load_data()
 
-# Check the data types of the columns
-print(df.dtypes)
+# Sidebar Configuration
+st.sidebar.title('🏪 KMeans Clustering Customer Segmentation')
+st.sidebar.markdown('Gunakan sidebar untuk memilih parameter KMeans')
 
-# Basic statistics of the dataset
-print(df.describe())
+# Menampilkan 10 baris teratas dari dataset
+st.subheader("Sample Data")
+st.dataframe(dataset.head(10))
 
-# Identify and calculate outliers using IQR method
-q1 = df.select_dtypes(exclude=['object']).quantile(0.25)
-q3 = df.select_dtypes(exclude=['object']).quantile(0.75)
+# Statistik dasar dataset
+st.subheader("Dataset Statistics")
+st.write(dataset.describe())
+
+# Cek Missing Values
+st.subheader("Missing Values")
+st.write(dataset.isnull().sum())
+
+# Identifikasi dan hitung outlier menggunakan metode IQR
+q1 = dataset.select_dtypes(exclude=['object']).quantile(0.25)
+q3 = dataset.select_dtypes(exclude=['object']).quantile(0.75)
 iqr = q3 - q1
 
 batas_bawah = q1 - 1.5 * iqr
 batas_atas = q3 + 1.5 * iqr
 
-print(f"Batas Atas: \n{batas_atas}")
-print(f"Batas Bawah: \n{batas_bawah}")
+st.subheader("Batas Atas dan Bawah untuk Outlier")
+st.write(f"Batas Atas: \n{batas_atas}")
+st.write(f"Batas Bawah: \n{batas_bawah}")
 
 # Filter outliers
-outlier_filter = (df.select_dtypes(exclude=['object']) < batas_bawah) | (df.select_dtypes(exclude=['object']) > batas_atas)
-outliers = df[outlier_filter.any(axis=1)]
-print("Outliers:\n", outliers)
+outlier_filter = (dataset.select_dtypes(exclude=['object']) < batas_bawah) | (dataset.select_dtypes(exclude=['object']) > batas_atas)
+outliers = dataset[outlier_filter.any(axis=1)]
+st.subheader("Outliers Detected")
+st.write(outliers)
 
-# Check missing values
-print(df.info())
-print(df.isnull().sum())
+# Sidebar untuk memilih jumlah cluster
+n_clusters = st.sidebar.slider("Pilih jumlah cluster", min_value=2, max_value=10, value=5)
 
 # Feature Selection (Assuming features are in the 4th and 5th columns)
-X = df.iloc[:, [3, 4]].values
+X = dataset.iloc[:, [3, 4]].values
 
-# K-means model: Assuming a maximum of 10 possible clusters
+# Menjalankan KMeans clustering
+kmeans = KMeans(n_clusters=n_clusters, init='k-means++', random_state=0)
+y_kmeans = kmeans.fit_predict(X)
+
+# Menampilkan hasil clustering dalam tabel
+st.subheader("Clustered Data")
+clustered_data = dataset.copy()
+clustered_data['Cluster'] = y_kmeans
+st.dataframe(clustered_data.head())
+
+# Menampilkan hasil visualisasi elbow method untuk menentukan jumlah cluster
 wcss = []
 for i in range(1, 11):
-    kmeans = KMeans(n_clusters=i, init='k-means++', random_state=0)
-    kmeans.fit(X)
-    wcss.append(kmeans.inertia_)
+    kmeans_temp = KMeans(n_clusters=i, init='k-means++', random_state=0)
+    kmeans_temp.fit(X)
+    wcss.append(kmeans_temp.inertia_)
 
-# Visualizing the Elbow Method to find optimal clusters
+st.subheader("Elbow Method")
 plt.figure(figsize=(10, 5))
 plt.plot(range(1, 11), wcss, marker='o', linestyle='--')
 plt.title('The Elbow Method')
 plt.xlabel('Number of Clusters')
 plt.ylabel('WCSS')
-plt.show()
+st.pyplot(plt)
 
-# Apply K-means clustering with optimal clusters (let's assume 5 based on the elbow method)
-kmeansmodel = KMeans(n_clusters=5, init='k-means++', random_state=0)
-y_kmeans = kmeansmodel.fit_predict(X)
+# Visualisasi Outlier - Boxplot
+st.subheader("Outlier Detection - Boxplot")
+for column in dataset.select_dtypes(exclude=['object']):
+    st.markdown(f'**{column}**')
+    plt.figure(figsize=(10, 1.5))
+    sns.boxplot(data=dataset, x=column)
+    st.pyplot(plt)
 
-# Visualizing the Clusters
+# Visualisasi Cluster dalam 2D Scatter plot
+st.subheader(f"Visualisasi Clusters dengan {n_clusters} Clusters")
 plt.figure(figsize=(10, 6))
-for i in range(5):
-    plt.scatter(X[y_kmeans == i, 0], X[y_kmeans == i, 1], s=100, label=f'Cluster {i + 1}')
-plt.scatter(kmeansmodel.cluster_centers_[:, 0], kmeansmodel.cluster_centers_[:, 1], s=300, c='yellow', label='Centroids')
-plt.title('Clusters of Customers')
+
+colors = ['red', 'blue', 'green', 'cyan', 'magenta', 'yellow', 'orange', 'purple', 'brown', 'gray']
+for i in range(n_clusters):
+    plt.scatter(X[y_kmeans == i, 0], X[y_kmeans == i, 1], s=100, c=colors[i], label=f'Cluster {i+1}')
+plt.scatter(kmeans.cluster_centers_[:, 0], kmeans.cluster_centers_[:, 1], s=300, c='black', label='Centroids')
+plt.title(f'Clusters of Customers (n_clusters={n_clusters})')
 plt.xlabel('Feature 1')
 plt.ylabel('Feature 2')
 plt.legend()
-plt.show()
+st.pyplot(plt)
 
-# Visualizing outliers using a boxplot for numeric features
-df_outlier = df.select_dtypes(exclude=['object'])
-for column in df_outlier:
-    plt.figure(figsize=(10, 2))
-    sns.boxplot(data=df_outlier, x=column)
-    plt.title(f'Boxplot of {column}')
-    plt.show()
+# Footer
+st.sidebar.markdown("### About")
+st.sidebar.info('''Aplikasi ini menggunakan KMeans untuk melakukan segmentasi pelanggan berdasarkan fitur numerik.
+Dataset yang digunakan di sini adalah "Drug.csv".''')
